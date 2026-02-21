@@ -15,6 +15,7 @@ from plotly.subplots import make_subplots
 import joblib
 import os
 import json
+import re
 
 # ============================================================
 # CONFIGURACIÓN GENERAL
@@ -270,6 +271,11 @@ def sensibilidad_tir(ve_total, precio_compra, perfil, escenarios_pct):
     return pd.DataFrame(resultados)
 
 
+def limpiar_links_indice(markdown_text):
+    """Convierte links internos tipo [texto](#ancla) a texto plano para evitar redirecciones."""
+    return re.sub(r'\[([^\]]+)\]\(#([^\)]+)\)', r'\1', markdown_text)
+
+
 # ============================================================
 # HEADER
 # ============================================================
@@ -512,8 +518,7 @@ with tab_guia:
     try:
         with open(GUIDE_PATH, 'r', encoding='utf-8') as f:
             guide_content = f.read()
-        with st.expander("Mostrar / ocultar guía completa", expanded=False):
-            st.markdown(guide_content)
+        st.markdown(limpiar_links_indice(guide_content))
     except Exception as e:
         st.warning(f"No se pudo cargar la guía de lectura: {e}")
 
