@@ -46,6 +46,7 @@ st.markdown("""
 # CARGA DE MODELOS
 # ============================================================
 MODELS_DIR = os.path.join(os.path.dirname(__file__), '..', 'models')
+GUIDE_PATH = os.path.join(os.path.dirname(__file__), '..', 'Guia_Visualizaciones_Dashboard.md')
 
 
 @st.cache_resource
@@ -276,29 +277,46 @@ st.title("Dashboard de Valuación de Cartera NPL")
 st.caption("Modelo Híbrido de Dos Etapas · Gradient Boosting · Grupo 4 — ML Supervisado UDB")
 
 # ============================================================
-# SIDEBAR — CARGA DE DATOS
+# SIDEBAR — MODO
 # ============================================================
-st.sidebar.header("Carga del Lote")
-file_saldo = st.sidebar.file_uploader("Saldo CSV", type=['csv'], key='saldo')
-file_detalles = st.sidebar.file_uploader("Detalles CSV", type=['csv'], key='detalles')
+st.sidebar.header("Modo de Evaluación")
+modo_eval = st.sidebar.radio(
+    "Selecciona el modo",
+    ["Individual", "Lote"],
+    index=0,
+    key='modo_eval'
+)
 
 st.sidebar.markdown("---")
-st.sidebar.header("Parámetros de Compra")
-margen_pct = st.sidebar.slider("Margen de seguridad (%)", 5, 50, 20, 1)
-margen = margen_pct / 100
-precio_por_dolar = st.sidebar.number_input(
-    "Precio de compra por $1 de saldo", min_value=0.01, max_value=0.50,
-    value=0.05, step=0.01, format="%.2f",
-    help="Dólares pagados por cada dólar de saldo facial del lote (ej: 0.05 = 5 centavos)"
-)
-perfil_cobranza = st.sidebar.selectbox(
-    "Perfil de cobranza", ['decreciente', 'uniforme', 'concentrado_inicio'],
-    help="Cómo se distribuye la recuperación a lo largo de 12 meses"
-)
-costo_operativo_pct = st.sidebar.slider(
-    "Costo operativo de gestión (%)", 0, 30, 12, 1,
-    help="Porcentaje del valor recuperado destinado a costos de cobranza"
-)
+file_saldo = None
+file_detalles = None
+margen = 0.20
+precio_por_dolar = 0.05
+perfil_cobranza = 'decreciente'
+costo_operativo_pct = 12
+
+if modo_eval == "Lote":
+    st.sidebar.header("Carga del Lote")
+    file_saldo = st.sidebar.file_uploader("Saldo CSV", type=['csv'], key='saldo')
+    file_detalles = st.sidebar.file_uploader("Detalles CSV", type=['csv'], key='detalles')
+
+    st.sidebar.markdown("---")
+    st.sidebar.header("Parámetros de Compra")
+    margen_pct = st.sidebar.slider("Margen de seguridad (%)", 5, 50, 20, 1)
+    margen = margen_pct / 100
+    precio_por_dolar = st.sidebar.number_input(
+        "Precio de compra por $1 de saldo", min_value=0.01, max_value=0.50,
+        value=0.05, step=0.01, format="%.2f",
+        help="Dólares pagados por cada dólar de saldo total del lote (ej: 0.05 = 5 centavos)"
+    )
+    perfil_cobranza = st.sidebar.selectbox(
+        "Perfil de cobranza", ['decreciente', 'uniforme', 'concentrado_inicio'],
+        help="Cómo se distribuye la recuperación a lo largo de 12 meses"
+    )
+    costo_operativo_pct = st.sidebar.slider(
+        "Costo operativo de gestión (%)", 0, 30, 12, 1,
+        help="Porcentaje del valor recuperado destinado a costos de cobranza"
+    )
 
 st.sidebar.markdown("---")
 st.sidebar.header("Modelo")
@@ -313,53 +331,56 @@ st.sidebar.markdown(f"""
 # ============================================================
 # EVALUACIÓN INDIVIDUAL
 # ============================================================
-st.header("Evaluación Individual")
-st.caption("Simula la valuación para una sola cuenta sin cargar archivos CSV.")
+if modo_eval == "Individual":
+    st.header("Evaluación Individual")
+    st.caption("Simula la valuación para una sola cuenta sin cargar archivos CSV.")
 
-col_i1, col_i2, col_i3 = st.columns(3)
+    col_i1, col_i2, col_i3 = st.columns(3)
 
-with col_i1:
-    saldo_raw = st.number_input("Saldo Total ($)", min_value=1.0, max_value=500000.0,
-                                value=5000.0, step=100.0, key='ind_saldo')
-    dias_mora = st.number_input("Días de Mora", min_value=0, max_value=3000,
-                                value=180, key='ind_dias_mora')
-    antiguedad = st.slider("Antigüedad (Meses)", 0, 200, 24, key='ind_antiguedad')
+    with col_i1:
+        saldo_raw = st.number_input("Saldo Total ($)", min_value=1.0, max_value=500000.0,
+                                    value=5000.0, step=100.0, key='ind_saldo')
+        dias_mora = st.number_input("Días de Mora", min_value=0, max_value=3000,
+                                    value=180, key='ind_dias_mora')
+        antiguedad = st.slider("Antigüedad (Meses)", 0, 200, 24, key='ind_antiguedad')
 
-with col_i2:
-    edad = st.slider("Edad", 18, 90, 35, key='ind_edad')
-    sexo = st.selectbox("Sexo", ["M", "F", "X"], key='ind_sexo')
-    civil = st.selectbox("Estado Civil",
-                         ["SOLTERO", "CASADO", "DIVORCIADO", "UNION_LIBRE", "OTROS"],
-                         key='ind_civil')
+    with col_i2:
+        edad = st.slider("Edad", 18, 90, 35, key='ind_edad')
+        sexo = st.selectbox("Sexo", ["M", "F", "X"], key='ind_sexo')
+        civil = st.selectbox("Estado Civil",
+                             ["SOLTERO", "CASADO", "DIVORCIADO", "UNION_LIBRE", "OTROS"],
+                             key='ind_civil')
 
-with col_i3:
-    recencia = st.slider("Meses sin pago", 0, 100, 6, key='ind_recencia')
-    score_contact = st.slider("Score Contactabilidad", 0.0, 6.0, 3.0, 0.5, key='ind_score')
-    ratio_cuota = st.number_input("Ratio Cuota/Saldo", min_value=0.0, max_value=1.0,
-                                  value=0.02, step=0.01, format="%.3f", key='ind_ratio')
+    with col_i3:
+        recencia = st.slider("Meses sin pago", 0, 100, 6, key='ind_recencia')
+        score_contact = st.slider("Score Contactabilidad", 0.0, 6.0, 3.0, 0.5, key='ind_score')
+        ratio_cuota = st.number_input("Ratio Cuota/Saldo", min_value=0.0, max_value=1.0,
+                                      value=0.02, step=0.01, format="%.3f", key='ind_ratio')
 
-if st.button("CALCULAR VALUACIÓN INDIVIDUAL", type="primary", use_container_width=True):
-    X_ind = preprocesar_cliente(
-        saldo_raw, dias_mora, antiguedad, recencia, edad, sexo, civil, score_contact, ratio_cuota
-    )
-    prob_ind = clf.predict_proba(X_ind)[0, 1]
-    monto_ind = max(reg.predict(X_ind)[0], 0)
-    ve_ind = prob_ind * monto_ind
+    if st.button("CALCULAR VALUACIÓN INDIVIDUAL", type="primary", use_container_width=True):
+        X_ind = preprocesar_cliente(
+            saldo_raw, dias_mora, antiguedad, recencia, edad, sexo, civil, score_contact, ratio_cuota
+        )
+        prob_ind = clf.predict_proba(X_ind)[0, 1]
+        monto_ind = max(reg.predict(X_ind)[0], 0)
+        ve_ind = prob_ind * monto_ind
 
-    i1, i2, i3, i4 = st.columns(4)
-    i1.metric("Probabilidad de Pago", f"{prob_ind:.1%}")
-    i2.metric("Recuperación Estimada", f"${monto_ind:,.2f}")
-    i3.metric("Valor Esperado", f"${ve_ind:,.2f}")
-    i4.metric("ROI Estimado", f"{(ve_ind / saldo_raw * 100):.1f}%")
+        i1, i2, i3, i4 = st.columns(4)
+        i1.metric("Probabilidad de Pago", f"{prob_ind:.1%}")
+        i2.metric("Recuperación Estimada", f"${monto_ind:,.2f}")
+        i3.metric("Valor Esperado", f"${ve_ind:,.2f}")
+        i4.metric("ROI Estimado", f"{(ve_ind / saldo_raw * 100):.1f}%")
 
-    if ve_ind > saldo_raw * 0.15:
-        st.success("**OPORTUNIDAD DE COMPRA** — El valor esperado supera el 15% del saldo.")
-    elif ve_ind > saldo_raw * 0.05:
-        st.warning("**EVALUAR** — Valor esperado moderado, requiere análisis adicional.")
-    else:
-        st.error("**RIESGO ALTO** — Valor esperado muy bajo respecto al saldo.")
+        if ve_ind > saldo_raw * 0.15:
+            st.success("**OPORTUNIDAD DE COMPRA** — El valor esperado supera el 15% del saldo.")
+        elif ve_ind > saldo_raw * 0.05:
+            st.warning("**EVALUAR** — Valor esperado moderado, requiere análisis adicional.")
+        else:
+            st.error("**RIESGO ALTO** — Valor esperado muy bajo respecto al saldo.")
 
-st.markdown("---")
+    st.markdown("---")
+    st.info("Cambia a **modo Lote** en la barra lateral para habilitar carga de archivos y dashboard masivo.")
+    st.stop()
 
 # ============================================================
 # PROCESAMIENTO PRINCIPAL
@@ -444,7 +465,7 @@ st.success(f"Lote procesado: **{n_cuentas:,}** cuentas evaluadas")
 st.header("Resumen Ejecutivo del Lote")
 k1, k2, k3, k4 = st.columns(4)
 k1.metric("Cuentas", f"{n_cuentas:,}")
-k2.metric("Saldo Facial", f"${saldo_total:,.0f}")
+k2.metric("Saldo Total", f"${saldo_total:,.0f}")
 k3.metric("Valor Esperado", f"${ve_total:,.0f}")
 k4.metric("Precio Compra", f"${precio_compra:,.0f}")
 
@@ -461,13 +482,25 @@ k10.metric("Costo Operativo", f"${costo_operativo:,.0f}")
 # ==============================================================
 # TABS DEL DASHBOARD
 # ==============================================================
-tab_decision, tab_dist, tab_segmentos, tab_sensibilidad, tab_detalle = st.tabs([
+tab_guia, tab_decision, tab_dist, tab_segmentos, tab_sensibilidad, tab_detalle = st.tabs([
+    "Guía de Lectura",
     "Decisión de Compra",
     "Distribución",
     "Segmentación",
     "Sensibilidad & TIR",
     "Detalle de Cuentas"
 ])
+
+# ==============================================================
+# TAB 0: GUÍA DE LECTURA
+# ==============================================================
+with tab_guia:
+    st.header("Guía de Lectura de Visualizaciones")
+    try:
+        with open(GUIDE_PATH, 'r', encoding='utf-8') as f:
+            st.markdown(f.read())
+    except Exception as e:
+        st.warning(f"No se pudo cargar la guía de lectura: {e}")
 
 # ==============================================================
 # TAB 1: DECISIÓN DE COMPRA
@@ -914,7 +947,7 @@ with tab_sensibilidad:
     fig_heat.update_layout(
         title="TIR Anual (%) por Precio de Compra vs Cumplimiento de Recuperación",
         xaxis_title="Cumplimiento del VE",
-        yaxis_title="Precio por $1 de saldo",
+        yaxis_title="Precio por $1 de saldo total",
         height=450, margin=dict(t=50, b=30)
     )
     # Marcador del escenario actual
@@ -956,7 +989,7 @@ with tab_sensibilidad:
 
     st.info(f"Para alcanzar una TIR del **{tir_objetivo:.0%}** con recuperación al 100%, "
             f"el precio máximo de compra es **${precio_max:,.0f}** "
-            f"(**${precio_por_dolar_max:.2f}** por cada $1 de saldo facial).")
+            f"(**${precio_por_dolar_max:.2f}** por cada $1 de saldo total).")
 
 
 # ==============================================================
