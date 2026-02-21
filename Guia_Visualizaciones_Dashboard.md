@@ -337,4 +337,3 @@ Tabla interactiva con datos a nivel de cuenta individual:
 
 ---
 
-*Documento generado como referencia para la lectura del Dashboard NPL — Grupo 4, ML Supervisado, UDB Virtual.*

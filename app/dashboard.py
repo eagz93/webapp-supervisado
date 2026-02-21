@@ -287,6 +287,14 @@ modo_eval = st.sidebar.radio(
     key='modo_eval'
 )
 
+if 'prev_modo_eval' not in st.session_state:
+    st.session_state['prev_modo_eval'] = modo_eval
+elif st.session_state['prev_modo_eval'] != modo_eval:
+    if modo_eval == "Individual":
+        st.session_state.pop('saldo', None)
+        st.session_state.pop('detalles', None)
+    st.session_state['prev_modo_eval'] = modo_eval
+
 st.sidebar.markdown("---")
 file_saldo = None
 file_detalles = None
@@ -397,16 +405,21 @@ if file_saldo is None or file_detalles is None:
     st.stop()
 
 # --- Procesar datos ---
-df_saldo_raw = pd.read_csv(file_saldo, encoding='latin1')
-df_detalles_raw = pd.read_csv(file_detalles, encoding='latin1')
+try:
+    df_saldo_raw = pd.read_csv(file_saldo, encoding='latin1')
+    df_detalles_raw = pd.read_csv(file_detalles, encoding='latin1')
 
-with st.spinner(f"Procesando {len(df_saldo_raw):,} cuentas..."):
-    X, df_orig = preprocesar_lote(df_saldo_raw, df_detalles_raw)
+    with st.spinner(f"Procesando {len(df_saldo_raw):,} cuentas..."):
+        X, df_orig = preprocesar_lote(df_saldo_raw, df_detalles_raw)
 
-    # Predicciones
-    prob_pago = clf.predict_proba(X)[:, 1]
-    monto_pred = np.maximum(reg.predict(X), 0)
-    valor_esperado = prob_pago * monto_pred
+        # Predicciones
+        prob_pago = clf.predict_proba(X)[:, 1]
+        monto_pred = np.maximum(reg.predict(X), 0)
+        valor_esperado = prob_pago * monto_pred
+except Exception as e:
+    st.error(f"No se pudieron procesar los archivos cargados: {e}")
+    st.info("Vuelve a cargar ambos CSV o cambia de modo a Individual para continuar.")
+    st.stop()
 
 # --- Construir DataFrame de resultados ---
 df_res = df_orig.copy()
@@ -482,23 +495,25 @@ k10.metric("Costo Operativo", f"${costo_operativo:,.0f}")
 # ==============================================================
 # TABS DEL DASHBOARD
 # ==============================================================
-tab_guia, tab_decision, tab_dist, tab_segmentos, tab_sensibilidad, tab_detalle = st.tabs([
-    "Guía de Lectura",
+tab_decision, tab_dist, tab_segmentos, tab_sensibilidad, tab_detalle, tab_guia = st.tabs([
     "Decisión de Compra",
     "Distribución",
     "Segmentación",
     "Sensibilidad & TIR",
-    "Detalle de Cuentas"
+    "Detalle de Cuentas",
+    "Guía de Lectura"
 ])
 
 # ==============================================================
-# TAB 0: GUÍA DE LECTURA
+# TAB 6: GUÍA DE LECTURA
 # ==============================================================
 with tab_guia:
     st.header("Guía de Lectura de Visualizaciones")
     try:
         with open(GUIDE_PATH, 'r', encoding='utf-8') as f:
-            st.markdown(f.read())
+            guide_content = f.read()
+        with st.expander("Mostrar / ocultar guía completa", expanded=False):
+            st.markdown(guide_content)
     except Exception as e:
         st.warning(f"No se pudo cargar la guía de lectura: {e}")
 
