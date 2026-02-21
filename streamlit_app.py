@@ -1,7 +1,7 @@
 """
 Entrypoint para Streamlit Cloud.
 
-Ejecuta la app principal ubicada en app/app.py.
+Ejecuta la app principal ubicada en app/dashboard.py.
 """
 
-from app import app  # noqa: F401
+from app import dashboard  # noqa: F401

@@ -79,6 +79,31 @@ def limpiar_moneda(val):
     return val
 
 
+def preprocesar_cliente(saldo, dias_mora, antiguedad, recencia, edad, sexo,
+                        civil, score_contact=3.0, ratio_cuota=0.02):
+    """Preprocesa una cuenta individual y retorna DataFrame listo para predicción."""
+    log_saldo = np.log1p(saldo)
+    mora_clipped = min(dias_mora, 720)
+
+    input_data = pd.DataFrame(columns=model_cols)
+    input_data.loc[0] = 0
+
+    input_data['LOG_SALDO'] = log_saldo
+    input_data['ANTIGUEDAD_MESES'] = antiguedad
+    input_data['EDAD_CLIENTE'] = edad
+    input_data['MESES_DESDE_ULTIMO_PAGO'] = recencia
+    input_data['DIAS MORA'] = mora_clipped
+    input_data['SCORE_CONTACTABILIDAD'] = score_contact
+    input_data['RATIO_CUOTA_SALDO'] = ratio_cuota
+
+    if f'SEXO_{sexo}' in input_data.columns:
+        input_data[f'SEXO_{sexo}'] = 1
+    if f'EST_CIVIL_CLEAN_{civil}' in input_data.columns:
+        input_data[f'EST_CIVIL_CLEAN_{civil}'] = 1
+
+    return input_data
+
+
 def preprocesar_lote(df_saldo, df_detalles=None):
     """Preprocesa un lote completo y retorna (X, df_original)."""
     df = df_saldo.copy()
@@ -284,6 +309,57 @@ st.sidebar.markdown(f"""
   - R² Test: {model_config['mejor_regresor']['resultados_cv']['R2_Test']:.4f}
   - MAE: ${model_config['mejor_regresor']['resultados_cv']['MAE_Test']:,.0f}
 """)
+
+# ============================================================
+# EVALUACIÓN INDIVIDUAL
+# ============================================================
+st.header("Evaluación Individual")
+st.caption("Simula la valuación para una sola cuenta sin cargar archivos CSV.")
+
+col_i1, col_i2, col_i3 = st.columns(3)
+
+with col_i1:
+    saldo_raw = st.number_input("Saldo Total ($)", min_value=1.0, max_value=500000.0,
+                                value=5000.0, step=100.0, key='ind_saldo')
+    dias_mora = st.number_input("Días de Mora", min_value=0, max_value=3000,
+                                value=180, key='ind_dias_mora')
+    antiguedad = st.slider("Antigüedad (Meses)", 0, 200, 24, key='ind_antiguedad')
+
+with col_i2:
+    edad = st.slider("Edad", 18, 90, 35, key='ind_edad')
+    sexo = st.selectbox("Sexo", ["M", "F", "X"], key='ind_sexo')
+    civil = st.selectbox("Estado Civil",
+                         ["SOLTERO", "CASADO", "DIVORCIADO", "UNION_LIBRE", "OTROS"],
+                         key='ind_civil')
+
+with col_i3:
+    recencia = st.slider("Meses sin pago", 0, 100, 6, key='ind_recencia')
+    score_contact = st.slider("Score Contactabilidad", 0.0, 6.0, 3.0, 0.5, key='ind_score')
+    ratio_cuota = st.number_input("Ratio Cuota/Saldo", min_value=0.0, max_value=1.0,
+                                  value=0.02, step=0.01, format="%.3f", key='ind_ratio')
+
+if st.button("CALCULAR VALUACIÓN INDIVIDUAL", type="primary", use_container_width=True):
+    X_ind = preprocesar_cliente(
+        saldo_raw, dias_mora, antiguedad, recencia, edad, sexo, civil, score_contact, ratio_cuota
+    )
+    prob_ind = clf.predict_proba(X_ind)[0, 1]
+    monto_ind = max(reg.predict(X_ind)[0], 0)
+    ve_ind = prob_ind * monto_ind
+
+    i1, i2, i3, i4 = st.columns(4)
+    i1.metric("Probabilidad de Pago", f"{prob_ind:.1%}")
+    i2.metric("Recuperación Estimada", f"${monto_ind:,.2f}")
+    i3.metric("Valor Esperado", f"${ve_ind:,.2f}")
+    i4.metric("ROI Estimado", f"{(ve_ind / saldo_raw * 100):.1f}%")
+
+    if ve_ind > saldo_raw * 0.15:
+        st.success("**OPORTUNIDAD DE COMPRA** — El valor esperado supera el 15% del saldo.")
+    elif ve_ind > saldo_raw * 0.05:
+        st.warning("**EVALUAR** — Valor esperado moderado, requiere análisis adicional.")
+    else:
+        st.error("**RIESGO ALTO** — Valor esperado muy bajo respecto al saldo.")
+
+st.markdown("---")
 
 # ============================================================
 # PROCESAMIENTO PRINCIPAL
